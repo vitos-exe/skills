@@ -1,0 +1,32 @@
+{
+  "name": "vitos-exe-skills",
+  "owner": {
+    "name": "vitos-exe",
+    "email": "vivich4omega@gmail.com"
+  },
+  "metadata": {
+    "description": "Personal skills collection for vitos-exe",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "my-skills",
+      "description": "Personal skills collection",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/atomize"
+      ]
+    },
+    {
+      "name": "spotify",
+      "description": "Spotify API utilities and playlist tools",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/spotify-api",
+        "./skills/playlist-splitter"
+      ]
+    }
+  ]
+}
