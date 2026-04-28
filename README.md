@@ -14,9 +14,18 @@ Then use the skills by mentioning them or describing tasks they handle.
 
 ## Skills
 
+### General
+
 | Skill | Description |
 |-------|-------------|
-| [atomic-review](./skills/atomic-review/) | Review code changes by replaying a branch diff as a series of atomic commits in a git worktree. Use when reviewing PRs/branches and you want to split changes into smaller, logical units for easier review. |
+| [atomize](./skills/atomize/) | Breaks down code changes into atomic commits for review or commit modes. |
+
+### Spotify
+
+| Skill | Description |
+|-------|-------------|
+| [spotify-api](./skills/spotify-api/) | Comprehensive Spotify Web API reference: auth flows, playlists, search, playback, library, rate limiting, and Feb 2026 breaking changes. |
+| [playlist-splitter](./skills/playlist-splitter/) | Splits a Spotify playlist into thematically coherent sub-playlists using a music analyst subagent. |
 
 ## Adding a New Skill
 
@@ -28,8 +37,8 @@ Then use the skills by mentioning them or describing tasks they handle.
    description: When to trigger and what the skill does
    ---
    ```
-3. Register in `.claude-plugin/plugin.json` by adding the path to `plugins[0].skills`
-4. (Optional) Update the Skills table in this README
+3. Register in `.claude-plugin/plugin.json` under the appropriate plugin's `skills` list
+4. Update the Skills table in this README
 
 See CLAUDE.md for development details.
 
@@ -38,6 +47,6 @@ See CLAUDE.md for development details.
 ```
 skills/                    # Skill implementations
 .claude-plugin/
-  plugin.json             # Plugin registry
+  plugin.json             # Plugin registry (two plugins: my-skills, spotify)
 CLAUDE.md                 # Development guide
 ```
