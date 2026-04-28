@@ -35,5 +35,5 @@ skills/
 | Skill | Description |
 |-------|-------------|
 | [atomize](./skills/atomize/SKILL.md) | Breaks down code changes into atomic commits for review or commit modes |
-| [spotify-api](./skills/spotify-api/SKILL.md) | Comprehensive Spotify Web API skill: auth flows, playlists, search, playback, library, rate limiting, Feb 2026 changes |
+| [spotify-api](./skills/spotify-api/SKILL.md) | PKCE auth and playlist/playlist-item management; runs all requests inline via Bash, no file creation |
 | [playlist-splitter](./skills/playlist-splitter/SKILL.md) | Splits a Spotify playlist into thematically coherent sub-playlists using a music analyst subagent |

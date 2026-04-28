@@ -20,7 +20,7 @@
     },
     {
       "name": "spotify",
-      "description": "Spotify API utilities and playlist tools",
+      "description": "Spotify PKCE auth and playlist management",
       "source": "./",
       "strict": false,
       "skills": [
