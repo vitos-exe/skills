@@ -110,14 +110,15 @@ playlist-read-private playlist-read-collaborative playlist-modify-public playlis
 ## Step 5: Apply confirmed merges
 
 For each approved pair, use the `id` already present in the fingerprint built in
-Step 1. Do not rely on current Spotify display names, which may have been renamed
-during prior audit sessions.
+Step 1. These IDs point to the agent copy playlists -- do not use `original_id` for writes.
+Do not rely on current Spotify display names, which may have been renamed during prior
+audit sessions.
 
 For each approved merge in order:
 
 1. `GET /playlists/{source_id}/items` (paginated) -- collect all source track URIs
 2. `POST /playlists/{target_id}/items` -- add in batches of 100
-3. `PUT /playlists/{source_id}` -- rename to `[merged] {original_name}`
+3. `PUT /playlists/{source_id}` -- rename to `[agent] [merged] {original_name}`
 
 Use the inline `spotify()` helper from the `spotify-api` skill for all calls.
 
@@ -133,6 +134,7 @@ For each applied merge:
   "audit_status": "merged",
   "action_taken": "merge",
   "merged_into": "Target Playlist Name",
+  "original_id": "<unchanged -- leave as-is>",
   "sample_tracks": []
 }
 ```

@@ -41,6 +41,7 @@ Populate `library-state.json` with every playlist as `pending`:
   "playlists": [
     {
       "id": "...",
+      "original_id": null,
       "name": "...",
       "track_count": null,
       "audit_status": "pending",
@@ -57,7 +58,16 @@ Populate `library-state.json` with every playlist as `pending`:
 
 Tell the user how many playlists were found and that the audit is starting. Then do a second pass: call `GET /playlists/{id}` for each playlist and store the track count in `track_count`. This lets the summary report size distribution (e.g. "54 playlists: 12 with 50+ tracks, 8 with fewer than 10") and helps the user set `mess_score` priorities.
 
-**If exists with pending entries**: pick the next target by `mess_score` descending (null scores = pick first in list order). The user can override by naming a specific playlist. If the user asks to skip the current playlist, set its `audit_status` to `"skipped"` and pick the next pending one.
+**If exists with pending entries**: first run the migration check below, then pick the next target.
+
+**Migration check**: Scan all `done` playlists. If any have `original_id == null` AND a `name`
+that does not start with `[agent]`, they were audited before the agent-copy convention was
+introduced (modified in place). For each:
+1. `PUT /playlists/{id} { "name": "[agent] {current_name}" }` -- rename on Spotify
+2. Update the `name` field in `library-state.json` to `[agent] {current_name}`
+3. Set `original_id` to `null` -- the original was modified in place; no separate original exists
+
+Then pick the next target by `mess_score` descending (null scores = pick first in list order). The user can override by naming a specific playlist. If the user asks to skip the current playlist, set its `audit_status` to `"skipped"` and pick the next pending one.
 
 `mess_score` is a manual priority field (0-10). It is always `null` when first populated and the audit proceeds in list order. The user can set it by hand in `library-state.json` to prioritize known problem playlists.
 
@@ -125,10 +135,10 @@ Show the analyst's full reasoning prose first.
 
 Then summarize the proposed action:
 
-- **reframe**: "Proposed: update description and mark as [ok]"
+- **reframe**: "Proposed: update description and mark as [agent] [ok]"
 - **split**: List each cluster with name, track count, and description
 - **purge**: List each track to remove with its reason
-- **merge**: "Proposed: move all tracks into '{merge_into}' and mark this playlist as [merged]"
+- **merge**: "Proposed: move all tracks into '{merge_into}' and mark this playlist as [agent] [merged]"
 
 Then ask:
 > Does this look right? You can approve, ask to adjust, or ask the analyst to reconsider.
@@ -141,37 +151,53 @@ Handle adjustments conversationally before proceeding.
 
 **Description format**: `description_written` uses `\n` between the four lines. When passing to the Spotify API, replace `\n` with ` | ` -- Spotify rejects newlines in descriptions (returns 400). Keep the `\n` version in `library-state.json`.
 
+### Create agent copy (all actions)
+
+Before applying any action, create an agent-managed copy of the original playlist. The original
+is never modified.
+
+1. Read `id` from the state entry and treat it as `original_id` for this step.
+2. `POST /me/playlists { "name": "[agent] {base_name}", "public": false, "description": "" }`
+   where `base_name` is the `name` field from the state entry -- used directly, no stripping
+   needed since pending playlists never carry audit tags.
+   Save the returned playlist `id` as `copy_id`.
+3. `GET /playlists/{original_id}/items` (paginated) -- collect all track URIs.
+4. `POST /playlists/{copy_id}/items { "uris": [...] }` (batches of 100) -- populate the copy.
+
+All subsequent writes in this step target `copy_id`. The original playlist at `original_id`
+is left untouched.
+
 ### reframe
 ```
-PUT /playlists/{id}  { "description": "<description>", "name": "[ok] {original_name}" }
+PUT /playlists/{copy_id}  { "description": "<description>", "name": "[agent] [ok] {base_name}" }
 ```
 
 ### split
-For each cluster:
+Rename the copy first:
 ```
-POST /me/playlists  { "name": "{original_name} · {cluster_name}", "public": false, "description": "..." }
+PUT /playlists/{copy_id}  { "name": "[agent] [split] {base_name}" }
+```
+Then create each cluster as a new agent playlist:
+```
+POST /me/playlists  { "name": "[agent] {base_name} · {cluster_name}", "public": false, "description": "..." }
 POST /playlists/{new_id}/items  { "uris": [...] }  (batches of 100)
-```
-Then rename the original:
-```
-PUT /playlists/{original_id}  { "name": "[split] {original_name}" }
 ```
 
 ### purge
-Before removing tracks, preserve them in the `[reroute]` holding playlist (`PUT /me/tracks` is blocked in Dev Mode):
+Before removing tracks, preserve them in the `[agent] [reroute]` holding playlist (`PUT /me/tracks` is blocked in Dev Mode):
 
-1. If `reroute_playlist_id` is null in state: `POST /me/playlists { "name": "[reroute]", "public": false }` and save the returned ID to `reroute_playlist_id` in state.
+1. If `reroute_playlist_id` is null in state: `POST /me/playlists { "name": "[agent] [reroute]", "public": false }` and save the returned ID to `reroute_playlist_id` in state.
 2. `POST /playlists/{reroute_id}/items  { "uris": [...purged URIs...] }  (batches of 100)`
-3. `DELETE /playlists/{id}/items  { "items": [{"uri": "..."}] }`
-4. `PUT /playlists/{id}  { "description": "...", "name": "[ok] {original_name}" }`
+3. `DELETE /playlists/{copy_id}/items  { "items": [{"uri": "..."}] }`
+4. `PUT /playlists/{copy_id}  { "description": "...", "name": "[agent] [ok] {base_name}" }`
 
-`[reroute]` is a permanent holding area -- Phase 2 (`spotify:sort-inbox`) will route these tracks to the right playlists.
+`[agent] [reroute]` is a permanent holding area -- Phase 2 (`spotify:sort-inbox`) will route these tracks to the right playlists.
 
 ### merge
-Look up the target playlist ID from `library-state.json` by matching the state's `name` field to `merge_into`. Use the stored `id` -- do not rely on the current Spotify display name, which may have been renamed during a prior audit.
+Look up the target playlist's `id` from `library-state.json` by matching the state's `name` field to `merge_into`. Use the stored `id` (the agent copy ID) -- do not rely on the current Spotify display name.
 ```
-POST /playlists/{target_id}/items  { "uris": [...all original tracks...] }  (batches of 100)
-PUT /playlists/{original_id}  { "name": "[merged] {original_name}" }
+POST /playlists/{target_id}/items  { "uris": [...all copy tracks...] }  (batches of 100)
+PUT /playlists/{copy_id}  { "name": "[agent] [merged] {base_name}" }
 ```
 
 ---
@@ -182,6 +208,8 @@ Set the audited playlist entry:
 
 ```json
 {
+  "id": "<copy_id -- the agent copy's playlist ID>",
+  "original_id": "<original_id -- the untouched original's playlist ID>",
   "audit_status": "done",
   "action_taken": "reframe|split|purge|merge",
   "description_written": "<the description field from analyst output>",
@@ -194,6 +222,10 @@ For `sample_tracks`: format as "Track Name - Artist Name", up to 15 tracks. Sour
 - **purge**: any 15 tracks from the tracks that remain after removal
 - **split**: any 15 tracks from the largest cluster
 - **merge**: leave `sample_tracks` as `[]` -- this playlist no longer exists as an independent entry; the target playlist retains its own samples
+
+Do not update the `name` field -- it stays as the original plain name (e.g. `house`). This is
+intentional: the fingerprint and merge lookup use `name` for human-readable matching; the
+Spotify display name diverges and that is fine.
 
 Update `last_updated` to the current ISO timestamp.
 
