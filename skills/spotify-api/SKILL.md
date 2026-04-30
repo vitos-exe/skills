@@ -1,10 +1,10 @@
 ---
 name: spotify-api
 description: >
-  Spotify Web API skill for PKCE authentication and personal playlist
-  management. Trigger when the user wants to authenticate with Spotify, list,
-  create, or modify their own playlists, or add/remove tracks from them. Only
-  works with playlists owned by the authenticated user.
+  Spotify Web API skill for PKCE authentication, playlist management, track
+  enrichment, and Liked Songs access. Trigger when the user wants to
+  authenticate with Spotify, list/create/modify playlists, add/remove tracks,
+  fetch artist or album metadata, or read their Liked Songs library.
 ---
 
 # Spotify Web API: Auth + Playlists
@@ -31,11 +31,13 @@ Required env vars:
 
 ## Step 2: PKCE auth (run inline when token is missing)
 
-Request only the scopes needed. For personal playlist read+write:
+Request only the scopes needed for the task at hand. Common scope sets:
 
-```
-playlist-read-private playlist-modify-public playlist-modify-private
-```
+| Use case | Scopes |
+|----------|--------|
+| Playlist read + write | `playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private` |
+| Liked Songs | `user-library-read` |
+| Full library management | `playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-library-read` |
 
 Run this inline. Use `127.0.0.1` not `localhost` as the redirect host.
 
@@ -211,6 +213,126 @@ spotify("PUT", f"/playlists/{playlist_id}", json={
     "description": "New desc",   # optional
     "public": False,             # optional
 })
+```
+
+---
+
+## Step 6: Liked Songs and track enrichment
+
+### Fetch Liked Songs (paginated)
+
+Requires scope: `user-library-read`.
+
+```python
+def get_liked_songs():
+    tracks, path, params = [], "/me/tracks", {"limit": 50, "offset": 0}
+    while path:
+        page = spotify("GET", path, params=params)
+        for entry in page["items"]:
+            t = entry.get("track")
+            if t and t.get("id") and t.get("type") == "track":
+                tracks.append(t)
+        next_url = page.get("next")
+        path   = next_url[len("https://api.spotify.com/v1"):] if next_url else None
+        params = {}
+    return tracks
+```
+
+Use these to enrich a track list with artist genres/popularity and album metadata before passing to an analyst subagent.
+
+### Batch-fetch artist data (up to 50 per call)
+
+```python
+def get_artists(artist_ids):
+    artists = {}
+    ids = list(dict.fromkeys(artist_ids))  # deduplicate, preserve order
+    for i in range(0, len(ids), 50):
+        batch = ids[i:i+50]
+        try:
+            data = spotify("GET", "/artists", params={"ids": ",".join(batch)})
+            for a in data["artists"]:
+                if a:
+                    artists[a["id"]] = a
+        except requests.HTTPError as e:
+            if e.response.status_code == 403:
+                # Dev Mode: batch endpoint blocked, fall back to individual calls
+                for aid in batch:
+                    try:
+                        a = spotify("GET", f"/artists/{aid}")
+                        artists[a["id"]] = a
+                    except Exception:
+                        pass
+            else:
+                raise
+    return artists
+```
+
+Dev Mode note: batch returns 403. Individual calls succeed but return stripped data (no `genres`, `popularity`, or `followers`). Analyst must rely on training knowledge for genre inference.
+
+### Batch-fetch album data (up to 20 per call)
+
+```python
+def get_albums(album_ids):
+    albums = {}
+    ids = list(dict.fromkeys(album_ids))
+    for i in range(0, len(ids), 20):
+        batch = ids[i:i+20]
+        try:
+            data = spotify("GET", "/albums", params={"ids": ",".join(batch)})
+            for a in data["albums"]:
+                if a:
+                    albums[a["id"]] = a
+        except requests.HTTPError as e:
+            if e.response.status_code == 403:
+                for aid in batch:
+                    try:
+                        a = spotify("GET", f"/albums/{aid}")
+                        albums[a["id"]] = a
+                    except Exception:
+                        pass
+            else:
+                raise
+    return albums
+```
+
+Dev Mode note: same 403 issue as artists. Individual calls also return stripped data (no `genres`, `popularity`, or `label`).
+
+### Assemble enriched track list
+
+After fetching artists and albums, merge into enriched objects:
+
+```python
+def enrich_tracks(tracks, artists_map, albums_map):
+    enriched = []
+    for t in tracks:
+        enriched.append({
+            "uri": t["uri"],
+            "name": t["name"],
+            "popularity": t.get("popularity"),
+            "explicit": t.get("explicit"),
+            "duration_ms": t.get("duration_ms"),
+            "artists": [
+                {
+                    "id": a["id"],
+                    "name": a["name"],
+                    "genres": artists_map.get(a["id"], {}).get("genres", []),
+                    "popularity": artists_map.get(a["id"], {}).get("popularity"),
+                    "followers": artists_map.get(a["id"], {}).get("followers", {}).get("total"),
+                }
+                for a in t.get("artists", [])
+            ],
+            "album": {
+                "id": t["album"]["id"],
+                "name": t["album"]["name"],
+                "release_date": t["album"].get("release_date"),
+                "album_type": t["album"].get("album_type"),
+                "genres": albums_map.get(t["album"]["id"], {}).get("genres", []),
+                "label": albums_map.get(t["album"]["id"], {}).get("label"),
+                "total_tracks": t["album"].get("total_tracks"),
+                "popularity": albums_map.get(t["album"]["id"], {}).get("popularity"),
+            },
+        })
+    return enriched
 ```
 
 ---

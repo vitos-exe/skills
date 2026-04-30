@@ -25,7 +25,8 @@
       "strict": false,
       "skills": [
         "./skills/spotify-api",
-        "./skills/playlist-splitter"
+        "./skills/library-audit",
+        "./skills/sort-inbox"
       ]
     }
   ]

@@ -35,5 +35,6 @@ skills/
 | Skill | Description |
 |-------|-------------|
 | [atomize](./skills/atomize/SKILL.md) | Breaks down code changes into atomic commits for review or commit modes |
-| [spotify-api](./skills/spotify-api/SKILL.md) | PKCE auth and playlist/playlist-item management; runs all requests inline via Bash, no file creation |
-| [playlist-splitter](./skills/playlist-splitter/SKILL.md) | Splits a Spotify playlist into thematically coherent sub-playlists using a music analyst subagent |
+| [spotify-api](./skills/spotify-api/SKILL.md) | PKCE auth, playlist CRUD, track enrichment (batch artist/album), and Liked Songs; all requests run inline via Bash |
+| [library-audit](./skills/library-audit/SKILL.md) | Audits one playlist per session: analyzes, proposes reframe/split/purge/merge, applies after confirmation, tracks progress in library-state.json |
+| [sort-inbox](./skills/sort-inbox/SKILL.md) | Routes new Liked Songs to the right playlist using the audited library fingerprint; requires full audit complete |
