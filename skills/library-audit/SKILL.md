@@ -37,10 +37,12 @@ Populate `library-state.json` with every playlist as `pending`:
   "version": 1,
   "phase": "audit",
   "last_updated": null,
+  "reroute_playlist_id": null,
   "playlists": [
     {
       "id": "...",
       "name": "...",
+      "track_count": null,
       "audit_status": "pending",
       "mess_score": null,
       "action_taken": null,
@@ -53,7 +55,7 @@ Populate `library-state.json` with every playlist as `pending`:
 }
 ```
 
-Tell the user how many playlists were found and that the audit is starting.
+Tell the user how many playlists were found and that the audit is starting. Then do a second pass: call `GET /playlists/{id}` for each playlist and store the track count in `track_count`. This lets the summary report size distribution (e.g. "54 playlists: 12 with 50+ tracks, 8 with fewer than 10") and helps the user set `mess_score` priorities.
 
 **If exists with pending entries**: pick the next target by `mess_score` descending (null scores = pick first in list order). The user can override by naming a specific playlist. If the user asks to skip the current playlist, set its `audit_status` to `"skipped"` and pick the next pending one.
 
@@ -137,6 +139,8 @@ Handle adjustments conversationally before proceeding.
 
 ## Step 7: Apply the confirmed action
 
+**Description format**: `description_written` uses `\n` between the four lines. When passing to the Spotify API, replace `\n` with ` | ` -- Spotify rejects newlines in descriptions (returns 400). Keep the `\n` version in `library-state.json`.
+
 ### reframe
 ```
 PUT /playlists/{id}  { "description": "<description>", "name": "[ok] {original_name}" }
@@ -154,10 +158,14 @@ PUT /playlists/{original_id}  { "name": "[split] {original_name}" }
 ```
 
 ### purge
-```
-DELETE /playlists/{id}/items  { "tracks": [{"uri": "..."}] }
-PUT /playlists/{id}  { "description": "...", "name": "[ok] {original_name}" }
-```
+Before removing tracks, preserve them in the `[reroute]` holding playlist (`PUT /me/tracks` is blocked in Dev Mode):
+
+1. If `reroute_playlist_id` is null in state: `POST /me/playlists { "name": "[reroute]", "public": false }` and save the returned ID to `reroute_playlist_id` in state.
+2. `POST /playlists/{reroute_id}/items  { "uris": [...purged URIs...] }  (batches of 100)`
+3. `DELETE /playlists/{id}/items  { "items": [{"uri": "..."}] }`
+4. `PUT /playlists/{id}  { "description": "...", "name": "[ok] {original_name}" }`
+
+`[reroute]` is a permanent holding area -- Phase 2 (`spotify:sort-inbox`) will route these tracks to the right playlists.
 
 ### merge
 Look up the target playlist ID from `library-state.json` by matching the state's `name` field to `merge_into`. Use the stored `id` -- do not rely on the current Spotify display name, which may have been renamed during a prior audit.
@@ -207,3 +215,16 @@ Write a brief human-readable pickup note:
 - Next pending playlist: "{next_pending_name}" (or "Audit complete" if none)
 - Run `spotify:library-audit` to continue
 ```
+
+---
+
+## Batch mode (optional)
+
+When the user wants to process multiple playlists in one session, the fetch-enrich-analyze steps can be parallelized:
+
+1. Pick N playlists to process (e.g. all pending, or a named subset).
+2. For each: fetch + enrich tracks (Steps 3-4), then spawn an analyst subagent with `run_in_background=true`.
+3. Wait for all subagents to complete, then present proposals sequentially for user approval.
+4. Apply each confirmed action one at a time (Steps 7-9).
+
+**Trade-off**: all parallel analysts share the same library fingerprint snapshot at the time they were spawned. None can see each other as merge candidates. This is fine when the batch playlists are clearly distinct; avoid it when you suspect duplicates in the batch.

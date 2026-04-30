@@ -14,7 +14,7 @@ playlist using the audited library fingerprint, and applies placements after
 user confirmation.
 
 **Prerequisite**: every playlist in `library-state.json` must have
-`audit_status` of `"done"` or `"skipped"` -- none can be `"pending"`. If any
+`audit_status` of `"done"`, `"skipped"`, or `"merged"` -- none can be `"pending"`. If any
 are still pending, stop and tell the user to finish the audit with
 `spotify:library-audit` first. This is intentional: routing decisions are only
 reliable once the library fingerprint is complete.

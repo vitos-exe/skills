@@ -33,6 +33,8 @@ Use WebSearch only when:
 
 Search for things like: "{artist name} music genre sound style", "{album name} {artist} review". Read enough to place the artist confidently, then stop. Do not search for every artist.
 
+**Dev Mode note**: if all `genres` arrays in the enriched track data are empty, the app is running in Spotify Dev Mode and API enrichment is unavailable. In that case, rely entirely on training knowledge and use WebSearch more liberally -- treat any artist where you would normally lean on genre tags as a candidate for a quick search.
+
 ---
 
 ## Choosing an action

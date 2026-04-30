@@ -155,7 +155,7 @@ def get_my_playlists():
 ```python
 playlist = spotify("GET", f"/playlists/{playlist_id}")
 name = playlist["name"]
-total = playlist.get("tracks", {}).get("total")
+total = playlist.get("items", {}).get("total")
 ```
 
 ### Fetch all playlist items (paginated)
@@ -201,7 +201,7 @@ for i in range(0, len(uris), 100):
 
 ```python
 spotify("DELETE", f"/playlists/{playlist_id}/items", json={
-    "tracks": [{"uri": u} for u in uris]
+    "items": [{"uri": u} for u in uris]
 })
 ```
 
@@ -214,6 +214,8 @@ spotify("PUT", f"/playlists/{playlist_id}", json={
     "public": False,             # optional
 })
 ```
+
+**Description constraint**: Spotify rejects descriptions containing newlines (returns 400 Bad Request with no helpful error message). Replace `\n` with ` | ` when writing descriptions to the API. Keep the `\n` version in any local state files for machine parsing.
 
 ---
 
@@ -343,6 +345,8 @@ def enrich_tracks(tracks, artists_map, albums_map):
 |-----|-----|
 | `GET/POST/PUT/DELETE /playlists/{id}/tracks` | `/playlists/{id}/items` |
 | `items[].track` key | `items[].item` key (accept both) |
+| `playlist["tracks"].get("total")` | `playlist["items"].get("total")` |
+| `DELETE body: {"tracks": [...]}` | `DELETE body: {"items": [...]}` |
 | `POST /users/{id}/playlists` | `POST /me/playlists` |
 | Dev Mode: 25 users | Dev Mode: 5 users |
 | Dev Mode: any owner account | Dev Mode: owner needs active Premium |

@@ -26,7 +26,8 @@
       "skills": [
         "./skills/spotify-api",
         "./skills/library-audit",
-        "./skills/sort-inbox"
+        "./skills/sort-inbox",
+        "./skills/merge-scan"
       ]
     }
   ]
