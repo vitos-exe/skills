@@ -27,7 +27,8 @@
         "./skills/spotify-api",
         "./skills/library-audit",
         "./skills/sort-inbox",
-        "./skills/merge-scan"
+        "./skills/merge-scan",
+        "./skills/drift-sync"
       ]
     }
   ]
