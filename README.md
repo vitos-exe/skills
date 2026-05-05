@@ -24,8 +24,11 @@ Then use the skills by mentioning them or describing tasks they handle.
 
 | Skill | Description |
 |-------|-------------|
-| [spotify-api](./skills/spotify-api/) | Comprehensive Spotify Web API reference: auth flows, playlists, search, playback, library, rate limiting, and Feb 2026 breaking changes. |
-| [playlist-splitter](./skills/playlist-splitter/) | Splits a Spotify playlist into thematically coherent sub-playlists using a music analyst subagent. |
+| [spotify-api](./skills/spotify-api/) | PKCE authentication, playlist management, track enrichment, and Liked Songs access. |
+| [library-audit](./skills/library-audit/) | Audits one playlist per session: analyzes tracks, proposes a curatorial action (reframe/split/purge/merge), applies after confirmation, tracks progress in library-state.json. |
+| [sort-inbox](./skills/sort-inbox/) | Routes new Liked Songs to the right playlist using the audited library fingerprint. Requires full audit complete. |
+| [merge-scan](./skills/merge-scan/) | Scans all audited playlists for merge candidates based on thematic and vibe similarity. Fully offline discovery, applies confirmed merges via API. |
+| [drift-sync](./skills/drift-sync/) | Detects drift between library-state.json and live Spotify playlists; reports missing copies, count changes, orphans, and deleted originals; syncs after confirmation. |
 
 ## Adding a New Skill
 
@@ -37,7 +40,7 @@ Then use the skills by mentioning them or describing tasks they handle.
    description: When to trigger and what the skill does
    ---
    ```
-3. Register in `.claude-plugin/plugin.json` under the appropriate plugin's `skills` list
+3. Register in `.claude-plugin/marketplace.json` under the appropriate plugin's `skills` list
 4. Update the Skills table in this README
 
 See CLAUDE.md for development details.
@@ -47,6 +50,6 @@ See CLAUDE.md for development details.
 ```
 skills/                    # Skill implementations
 .claude-plugin/
-  plugin.json             # Plugin registry (two plugins: my-skills, spotify)
+  marketplace.json        # Plugin registry (two plugins: my-skills, spotify)
 CLAUDE.md                 # Development guide
 ```

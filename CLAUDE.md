@@ -9,7 +9,7 @@ skills/
   <skill-name>/
     SKILL.md          # skill instructions + frontmatter
 .claude-plugin/
-  plugin.json         # plugin registry (name, owner, skill list)
+  marketplace.json    # plugin registry (name, owner, skill list)
 ```
 
 ## Adding a skill
